@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+</head>
+<body>
+<h2>Chat Room: [[${roomName}]]</h2>
+<textarea id="chatArea" rows="10" cols="50" readonly></textarea><br>
+<textarea id="messageInput" placeholder="Type a message..." rows="3"></textarea>
+<button id="sendButton">Send</button>
+
+<script>
+    // roomId에 싱글 쿼테이션 추가
+    var roomId = '[[${roomId}]]';  // roomId가 문자열일 경우 싱글 쿼테이션으로 감싸기
+    var webSocket = new WebSocket('ws://localhost:8080/chat/' + roomId);
+
+    // 메시지 수신
+    webSocket.onmessage = function(event) {
+        var chatArea = document.getElementById("chatArea");
+        chatArea.value += event.data + "\n";
+    };
+
+    // 메시지 전송 함수
+    function sendMessage() {
+        var messageInput = document.getElementById("messageInput");
+        var message = messageInput.value.trim();
+
+        if (message) {
+            webSocket.send(message);  // WebSocket을 통해 메시지 전송
+            messageInput.value = '';  // 입력 필드 초기화
+        }
+    }
+
+    // "Send" 버튼에 클릭 이벤트 리스너 추가
+    document.getElementById("sendButton").addEventListener("click", sendMessage);
+
+    // Enter 키를 눌렀을 때 메시지 전송
+    document.getElementById("messageInput").addEventListener("keypress", function(event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+            event.preventDefault();  // 줄 바꿈 방지
+            sendMessage();  // 메시지 전송
+        }
+    });
+</script>
+</body>
+</html>

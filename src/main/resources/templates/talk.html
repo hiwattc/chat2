@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Room</title>
+    <style>
+        #chatArea {
+            width: 50%;
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            background-color: #f9f9f9;
+        }
+
+        .message {
+            margin: 5px 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .message.username1 {
+            justify-content: flex-start;
+        }
+
+        .message.username2 {
+            justify-content: flex-end;
+        }
+
+        .bubble {
+            padding: 10px;
+            border-radius: 20px;
+            max-width: 60%;
+            color: #ffffff;
+            word-wrap: break-word;
+            background-color: #007bff;  /* 사용자 1의 색 */
+            justify-content: flex-end;
+        }
+
+        .bubble.username1 {
+            background-color: #007bff;  /* 사용자 1의 색 */
+        }
+
+        .bubble.username2 {
+            background-color: #28a745;  /* 사용자 2의 색 */
+        }
+    </style>
+</head>
+<body>
+<h2>Chat Room: [[${roomName}]]</h2>
+
+<!-- 사용자 이름 입력 필드 -->
+<input type="text" id="usernameInput" placeholder="Enter your name" />
+<button id="joinButton">Join Room</button>
+
+<div id="chatContainer" style="display:none;">
+    <div id="chatArea" readonly></div><br>
+    <textarea id="messageInput" placeholder="Type a message..." rows="3"></textarea>
+    <button id="sendButton">Send</button>
+</div>
+
+<script>
+    var roomId = '[[${roomId}]]';  // roomId에 싱글 쿼테이션 추가
+    var webSocket;
+    var username = ''; // 사용자 이름을 저장할 변수
+
+    // 대화방에 입장 버튼 클릭 이벤트
+    document.getElementById("joinButton").addEventListener("click", function() {
+        username = document.getElementById("usernameInput").value.trim();
+        if (username) {
+            webSocket = new WebSocket('ws://localhost:8080/chat/' + roomId);
+            document.getElementById("chatContainer").style.display = "block"; // 채팅 컨테이너 표시
+
+            // WebSocket이 연결되면 사용자 이름을 전송
+            webSocket.onopen = function() {
+                console.log(username + ' has joined the room.');
+            };
+
+            // 메시지 수신
+            webSocket.onmessage = function(event) {
+                console.log(username + ' webSocket.onmessage called!');
+
+
+                var chatArea = document.getElementById("chatArea");
+                var data = JSON.parse(event.data);
+                console.log(data.username +'/'+ data.message);
+
+
+                var messageBubble = document.createElement('div');
+                messageBubble.className = 'message ' + data.username;
+
+                var bubble = document.createElement('div');
+                bubble.className = 'bubble ' + data.username;
+                bubble.innerText = data.username + ": " + data.message;
+
+                messageBubble.appendChild(bubble);
+                chatArea.appendChild(messageBubble);
+                chatArea.scrollTop = chatArea.scrollHeight; // 스크롤을 항상 맨 아래로 이동
+            };
+
+            // 메시지 전송 함수
+            function sendMessage() {
+                console.log(username + ' sendMessage() called!');
+                var messageInput = document.getElementById("messageInput");
+                var message = messageInput.value.trim();
+
+                if (message) {
+                    var data = {
+                        username: username,
+                        message: message
+                    };
+                    webSocket.send(JSON.stringify(data));  // WebSocket을 통해 JSON 형태로 전송
+                    messageInput.value = '';  // 입력 필드 초기화
+                }
+            }
+
+            // "Send" 버튼에 클릭 이벤트 리스너 추가
+            document.getElementById("sendButton").addEventListener("click", sendMessage);
+
+            // Enter 키를 눌렀을 때 메시지 전송
+            document.getElementById("messageInput").addEventListener("keypress", function(event) {
+                if (event.key === "Enter" && !event.shiftKey) {
+                    event.preventDefault();  // 줄 바꿈 방지
+                    sendMessage();  // 메시지 전송
+                }
+            });
+        } else {
+            alert("Please enter your name.");
+        }
+    });
+</script>
+</body>
+</html>

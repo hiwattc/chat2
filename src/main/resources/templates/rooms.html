@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Rooms</title>
+</head>
+<body>
+<h2>Chat Rooms</h2>
+<ul>
+    <li th:each="room : ${rooms}">
+        <a th:href="@{'/talk/' + ${room.roomId}}">[[${room.roomName}]]</a>
+    </li>
+</ul>
+
+<h3>Create a new Chat Room</h3>
+<form action="/rooms" method="post">
+    <input type="text" name="name" placeholder="Enter chat room name">
+    <button type="submit">Create Room</button>
+</form>
+</body>
+</html>
