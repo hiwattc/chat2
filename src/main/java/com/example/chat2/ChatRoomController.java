@@ -4,6 +4,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import java.util.Collection;
+import java.util.UUID;
 
 @Controller
 public class ChatRoomController {
@@ -12,6 +13,11 @@ public class ChatRoomController {
 
     public ChatRoomController(ChatRoomService chatRoomService) {
         this.chatRoomService = chatRoomService;
+    }
+    // 채팅방 목록 조회
+    @GetMapping("/")
+    public String home() {
+        return "redirect:/rooms";
     }
 
     // 채팅방 목록 조회

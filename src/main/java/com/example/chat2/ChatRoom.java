@@ -10,7 +10,11 @@ public class ChatRoom {
     public static ChatRoom create(String name) {
         ChatRoom room = new ChatRoom();
         room.roomId = UUID.randomUUID().toString();  // 랜덤한 고유 ID 생성
-        room.roomName = name;
+        if(name == null || name.isEmpty()){
+            room.roomName = room.roomId;
+        }else{
+            room.roomName = name;
+        }
         return room;
     }
 

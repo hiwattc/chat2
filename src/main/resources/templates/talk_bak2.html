@@ -4,21 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Chat Room</title>
-    <!-- Bootstrap CSS 추가 -->
-    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
     <style>
-        /* 기존 스타일을 Bootstrap으로 개선 */
-        body {
-            display: flex;
-            'justify-content: center;
-            align-items: center;
-            height: 100vh; /* 화면 전체 높이 사용 */
-            background-color: #f8f9fa; /* 밝은 배경색 */
-            margin-top: 50px;
-        }
-
+        /* 기존 스타일은 그대로 유지 */
         #chatArea {
-            width: 100%;
+            width: 50%;
             height: 300px;
             overflow-y: auto;
             border: 1px solid #ccc;
@@ -44,16 +33,12 @@
 
         .bubble.creator {
             background-color: #007bff;  /* 방 개설자의 말풍선 색 (파란색) */
-            margin-right: auto;  /* 오른쪽으로 정렬 */
             float: left;
-            text-align: left; /* 텍스트 왼쪽 정렬 */
         }
 
         .bubble.other {
             background-color: #28a745;  /* 다른 사용자의 말풍선 색 (녹색) */
-            margin-left: auto;  /* 오른쪽으로 정렬 */
             float: right;
-            text-align: left; /* 텍스트 왼쪽 정렬 */
         }
 
         .progress {
@@ -70,89 +55,32 @@
             background-color: #4caf50;
             border-radius: 5px;
         }
-
-        /* 메시지 입력 필드 스타일 */
-        #messageInput {
-            font-size: 16px; /* 폰트 크기 설정 */
-            font-family: Arial, sans-serif; /* 폰트 스타일 설정 */
-            width: 100%; /* 가로 크기를 채팅 영역에 맞춤 */
-        }
-
-        /* 입력 필드와 버튼의 가운데 정렬 */
-        .input-group {
-            width: 50%; /* 전체 너비의 50% */
-            margin: 0 auto; /* 가운데 정렬 */
-        }
-        /* Send 버튼 스타일 */
-        #sendButton {
-            position: absolute;
-            right: 10px; /* 오른쪽 여백 */
-            bottom: 10px; /* 아래 여백 */
-        }
-        #joinButton {
-            position: absolute;
-            right: 300px; /* 오른쪽 여백 */
-            bottom: 0px; /* 아래 여백 */
-        }
-        #roomsButton {
-            position: absolute;
-            right: 10px; /* 오른쪽 여백 */
-            bottom: 0px; /* 아래 여백 */
-        }
-        /* 입력 필드 및 버튼의 부모 요소를 flexbox로 설정 */
-        .input-container {
-            position: relative;
-            display: flex;
-            align-items: flex-end;
-        }
-        /* 제목 글씨 스타일 (회색) */
-        h2 {
-            color: gray; /* 회색으로 설정 */
-        }
-        /* 제목 글씨 스타일 (회색) */
-        h3 {
-            color: gray; /* 회색으로 설정 */
-        }
-        /* 사용자 이름 입력 필드 스타일 */
-        #usernameInput {
-            width: 300px; /* 고정 너비 설정 */
-            margin: 0 auto; /* 가운데 정렬 */
-            display: block; /* block 요소로 설정 */
-        }
     </style>
 </head>
 <body>
-<div class="container text-center">
-    <h3>Chat Room: [[${roomName}]]</h3>
-    <input type="text" id="usernameInput" class="form-control" placeholder="Enter your name" />
-    <div class="input-container">
-        <button id="joinButton" class="btn btn-primary mt-2">Join Room</button>
-        <button id="roomsButton" class="btn btn-primary mt-2" onclick="window.location.href='/rooms'" style="display: none;">Rooms</button>
+<h2>Chat Room: [[${roomName}]]</h2>
+
+<input type="text" id="usernameInput" placeholder="Enter your name" />
+<button id="joinButton">Join Room</button>
+
+<div id="chatContainer" style="display:none;">
+    <!-- 채팅 메시지를 표시할 div -->
+    <div id="chatArea"></div><br>
+    <textarea id="messageInput" placeholder="Type a message..." rows="3"></textarea>
+    <button id="sendButton">Send</button>
+    <br><br>
+
+    <!-- 파일 선택 -->
+    <input type="file" id="fileInput" />
+    <button id="sendFileButton">Send File</button>
+
+    <!-- Progress Bar 추가 -->
+    <div class="progress" id="progressBar">
+        <div class="progress-bar" id="progressBarFill"></div>
     </div>
 
-    <div id="chatContainer" style="display:none;">
-        <!-- 채팅 메시지를 표시할 div -->
-        <div id="chatArea"></div><br>
-
-        <!-- 메시지 입력 부분 -->
-        <div class="input-container">
-        <textarea id="messageInput" class="form-control" placeholder="Type a message..." rows="3"></textarea>
-        <button id="sendButton" class="btn btn-success">Send</button>
-        </div>
-        <br>
-
-        <!-- 파일 선택 -->
-        <input type="file" id="fileInput" class="mt-2" />
-        <button id="sendFileButton" class="btn btn-info mt-2">Send File</button>
-
-        <!-- Progress Bar 추가 -->
-        <div class="progress" id="progressBar">
-            <div class="progress-bar" id="progressBarFill"></div>
-        </div>
-
-        <!-- Download Link 추가 -->
-        <a id="downloadLink" style="display: none;">Download File</a>
-    </div>
+    <!-- Download Link 추가 -->
+    <a id="downloadLink" style="display: none;">Download File</a>
 </div>
 
 <script>
@@ -160,7 +88,10 @@
     var webSocket;
     var username = ''; // 사용자 이름을 저장할 변수
     var isCreator = false; // 방 개설자인지 여부
-    const CHUNK_SIZE = 32 * 1024;  // 32KB 크기로 파일을 나눔
+    //const CHUNK_SIZE = 8 * 1024;  // 16KB 크기로 파일을 나눔
+    //const CHUNK_SIZE = 16 * 1024;  // 16KB 크기로 파일을 나눔
+    const CHUNK_SIZE = 32 * 1024;  // 16KB 크기로 파일을 나눔
+    //const CHUNK_SIZE = 64 * 1024;  // 16KB 크기로 파일을 나눔
 
     var progressBar = document.getElementById("progressBar");
     var progressBarFill = document.getElementById("progressBarFill");
@@ -188,11 +119,6 @@
 
     // 대화방에 입장 버튼 클릭 이벤트
     document.getElementById("joinButton").addEventListener("click", function() {
-
-        document.getElementById("usernameInput").style.display = "none";
-        document.getElementById("joinButton").style.display = "none";
-        document.getElementById("roomsButton").style.display = "block";
-
         username = document.getElementById("usernameInput").value.trim();
         if (username) {
             if (webSocket && webSocket.readyState === WebSocket.OPEN) {
@@ -202,6 +128,7 @@
             webSocket = new WebSocket('ws://localhost:8080/chat/' + roomId);
 
             webSocket.binaryType = 'arraybuffer';
+
 
             document.getElementById("chatContainer").style.display = "block"; // 채팅 컨테이너 표시
 
@@ -229,40 +156,65 @@
             webSocket.onmessage = function(event) {
                 var chatArea = document.getElementById("chatArea");
                 var data = '';
-                try {
+                try{
                     data = JSON.parse(event.data);
-                } catch (e) {
-                    data = { type: 'file' };
+                }catch(e){  //if (data instanceof Blob) {
+                    data = {
+                        type: 'file'
+                    };
                 }
 
-                if (data.type == 'file' || data.type == 'fileMeta') {
-                    if (data.type == 'fileMeta') {
+                if (data.type == 'file' ||data.type =='fileMeta') {
+                    // 로그 추가 - 메시지 수신 시
+                    //console.log("Message received from " + data.username + ": " + data.file);
+
+                    if(data.type == 'fileMeta'){
+                        console.log("data.totalChunks ::" + data.totalChunks);
+                        console.log("data.chunkIndex ::" + data.chunkIndex);
                         totalChunks = data.totalChunks;
-                        if (data.chunkIndex >= totalChunks) {
+                        if(data.chunkIndex >= data.totalChunks){
+                            // 모든 chunk 수신 완료
                             var completeFile = new Blob(receivedChunks);
                             var downloadUrl = URL.createObjectURL(completeFile);  // Blob을 URL로 변환
+
+                            // 다운로드 링크 설정
                             downloadLink.href = downloadUrl;
                             downloadLink.download = data.fileName;  // 파일 이름 설정
                             downloadLink.style.display = 'block';  // 다운로드 링크 표시
-                            downloadLink.innerHTML = 'Download File: ' + data.fileName;  // 링크 텍스트 설정
+                            downloadLink.innerHTML = 'Download File'+data.fileName;  // 링크 텍스트 설정
+
+                            // 진행률 숨기기
                             progressBar.style.display = 'none';
+                            console.log("File received successfully.");
                             currentChunk = 0;
                             totalChunks = 0;
                         }
-                    } else {
+                    }else{
                         currentChunk++;
+                        //console.log("Message received from " + new Uint8Array(event.data));
                         receivedChunks.push(new Uint8Array(event.data));
+
+                        // 진행률 표시
                         var progress = (currentChunk / totalChunks) * 100;
+                        console.log("progress::"+progress);
                         progressBar.style.display = 'block';
                         progressBarFill.style.width = progress + '%';
                     }
+
+
                 } else {
+                    // 로그 추가 - 메시지 수신 시
+                    console.log("Message received from " + data.username + ": " + data.message);
                     var messageBubble = document.createElement('div');
+
+                    // 방 개설자와 다른 사용자 구분
                     var bubbleClass = data.username === username && isCreator ? 'creator' : 'other';
                     messageBubble.className = 'message ' + bubbleClass;
+
                     var bubble = document.createElement('div');
                     bubble.className = 'bubble ' + bubbleClass;
                     bubble.innerText = data.username + ": " + data.message;
+
                     messageBubble.appendChild(bubble);
                     chatArea.appendChild(messageBubble);
                     chatArea.scrollTop = chatArea.scrollHeight; // 스크롤을 항상 맨 아래로 이동
@@ -275,7 +227,16 @@
                 var message = messageInput.value.trim();
 
                 if (message) {
-                    var data = { messageType: 'chat', username: username, message: message };
+                    var data = {
+                        messageType: 'chat',
+                        username: username,
+                        message: message
+                    };
+
+                    // 로그 추가 - 메시지 전송 시
+                    console.log("Message sent by " + username + ": " + message);
+
+                    // WebSocket 연결 상태 확인 후 메시지 전송
                     if (webSocket.readyState === WebSocket.OPEN) {
                         webSocket.send(JSON.stringify(data));  // WebSocket을 통해 JSON 형태로 전송
                     } else {
@@ -297,8 +258,6 @@
                 }
             });
 
-
-
             // 파일 전송 버튼 클릭 이벤트
             document.getElementById("sendFileButton").addEventListener("click", function() {
                 var fileInput = document.getElementById("fileInput");
@@ -309,9 +268,13 @@
                     var offset = 0;  // 현재 읽고 있는 파일의 오프셋
                     totalChunks = Math.ceil(file.size / CHUNK_SIZE); // 전체 chunk 수 계산
 
+                    // 파일 읽기 완료 시
                     reader.onload = function(event) {
+                        //var chunkData = new Uint8Array(event.target.result);  // 현재 chunk 데이터
                         var chunkData = event.target.result;  // 현재 chunk 데이터
 
+
+                        // WebSocket 연결 상태 확인 후 chunk 전송
                         if (webSocket.readyState === WebSocket.OPEN) {
                             webSocket.send(chunkData);
                         } else {
@@ -320,14 +283,17 @@
 
                         offset += CHUNK_SIZE;  // 다음 chunk를 읽기 위한 오프셋 증가
 
+                        // 진행률 표시
                         var progress = (offset / file.size) * 100;
                         progressBar.style.display = 'block';
                         progressBarFill.style.width = progress + '%';
 
+                        // 다음 chunk가 있으면 계속 읽기
                         if (offset < file.size) {
                             readChunk();  // 다음 chunk 읽기
                         } else {
                             if (webSocket.readyState === WebSocket.OPEN) {
+                                console.log("file meta send last...");
                                 webSocket.send(JSON.stringify({
                                     type: 'fileMeta',
                                     username: username,
@@ -336,16 +302,20 @@
                                     chunkIndex: Math.floor(offset / CHUNK_SIZE)  // chunk 인덱스 계산
                                 }));
                             }
+                            console.log("File upload complete.");
                             progressBar.style.display = 'none';  // 진행률 숨기기
                         }
                     };
 
+                    // chunk 읽기 함수
                     function readChunk() {
                         var blob = file.slice(offset, offset + CHUNK_SIZE);  // 파일의 특정 범위 자르기
                         reader.readAsArrayBuffer(blob);  // 잘라낸 범위를 ArrayBuffer로 읽기
                     }
 
+                    //파일binary전송하기전에 meta정보전송
                     if (webSocket.readyState === WebSocket.OPEN) {
+                        console.log("file meta send first...");
                         webSocket.send(JSON.stringify({
                             type: 'fileMeta',
                             username: username,
