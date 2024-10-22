@@ -61,50 +61,15 @@
             background-color: #f3f3f3;
             border-radius: 5px;
             margin-top: 10px;
-            display: none;
+            display: none; /* 기본적으로 숨김 */
         }
 
-        /*
         .progress-bar {
             width: 0%;
             height: 20px;
             background-color: #4caf50;
             border-radius: 5px;
         }
-        */
-
-
-        .progress-bar {
-            width: 100%;
-            background-color: #e72424;
-            height: 20px;
-            border-radius: 5px;
-            margin-top: 10px;
-            'display: none;  /* 기본적으로 숨김 */
-        }
-
-        .progress-bar-fill {
-            height: 100%;
-            background-color: #007bff;
-            width: 0%;
-            border-radius: 5px;
-        }
-
-        .download-link {
-            margin-top: 10px;
-            display: block;
-            color: #007bff;
-            text-decoration: none;
-        }
-
-        .download-link:hover {
-            text-decoration: underline;
-        }
-
-
-
-
-
 
         /* 메시지 입력 필드 스타일 */
         #messageInput {
@@ -190,6 +155,28 @@
         <a id="downloadLink" style="display: none;">Download File</a>
     </div>
 </div>
+<script>
+    const chatarea = document.getElementById('chatarea');
+
+    // 드래그앤드랍 이벤트 설정
+    chatarea.addEventListener('dragover', (event) => {
+        event.preventDefault();
+        chatarea.style.border = '2px dashed #007bff';  // 파일이 위에 있을 때 스타일 변경
+    });
+
+    chatarea.addEventListener('dragleave', () => {
+        chatarea.style.border = '';  // 드래그에서 벗어나면 스타일 원상복구
+    });
+
+    chatarea.addEventListener('drop', (event) => {
+        event.preventDefault();
+        chatarea.style.border = '';  // 파일이 드랍되면 스타일 원상복구
+        const files = event.dataTransfer.files;
+        if (files.length > 0) {
+            handleFileUpload(files[0]);
+        }
+    });
+</script>
 
 
 
@@ -199,7 +186,7 @@
     var username = ''; // 사용자 이름을 저장할 변수
     var isCreator = false; // 방 개설자인지 여부
     const CHUNK_SIZE = 32 * 1024;  // 32KB 크기로 파일을 나눔
-    var chatarea ='';
+
     var progressBar = document.getElementById("progressBar");
     var progressBarFill = document.getElementById("progressBarFill");
     var downloadLink = document.getElementById("downloadLink");
@@ -216,10 +203,6 @@
         }
         return result;
     }
-
-
-
-
 
     // 페이지 로드 시 랜덤한 사용자 이름을 입력 필드에 설정
     window.onload = function() {
@@ -290,23 +273,6 @@
                             progressBar.style.display = 'none';
                             currentChunk = 0;
                             totalChunks = 0;
-
-
-                            //chatarea에 추가
-                            //----------------------------------------------------------
-                            const downloadLinkChat = document.createElement('a');
-                            downloadLinkChat.href = downloadUrl;  // 서버에서 파일 다운로드 경로
-                            downloadLinkChat.download = data.fileName
-                            downloadLinkChat.textContent = 'Download ' + data.fileName;
-                            downloadLinkChat.classList.add('download-link');
-                            downloadLink.innerHTML = 'Download File: ' + data.fileName;
-                            const chatMessage = document.createElement('div');
-                            chatMessage.appendChild(downloadLinkChat);
-                            chatArea.appendChild(chatMessage);
-
-                            receivedChunks = [];
-                            //----------------------------------------------------------
-
                         }
                     } else {
                         currentChunk++;
@@ -358,104 +324,6 @@
 
 
 
-            // 파일 전송 버튼 클릭 이벤트
-            document.getElementById("sendFileButton").addEventListener("click", function() {
-                var fileInput = document.getElementById("fileInput");
-                var file = fileInput.files[0]; // 사용자가 선택한 파일
-                if (file) {
-                    sendFile(file);
-                } else {
-                    alert('Please select a file first.');
-                }
-            });
-            chatarea = document.getElementById('chatArea');
-
-            // 드래그앤드랍 이벤트 설정
-            // -------------------------------------------------------------
-            chatarea.addEventListener('dragover', (event) => {
-                console.log("dragover configured!");
-                event.preventDefault();
-                chatarea.style.border = '2px dashed #007bff';  // 파일이 위에 있을 때 스타일 변경
-            });
-
-            chatarea.addEventListener('dragleave', () => {
-                console.log("dragleave configured!");
-                chatarea.style.border = '';  // 스타일 초기화
-            });
-
-            chatarea.addEventListener('drop', (event) => {
-                console.log("drop configured!");
-                event.preventDefault();
-                chatarea.style.border = '';  // 스타일 초기화
-                const files = event.dataTransfer.files;
-                if (files.length > 0) {
-                    for (let i = 0; i < files.length; i++) {
-                        sendFile(files[i]);  // 각 파일에 대해 파일 전송 로직 호출
-                    }
-                }
-            });
-            // -------------------------------------------------------------
-
-
-            // 파일 전송 함수
-            function sendFile(file) {
-                var reader = new FileReader();
-                var offset = 0;  // 현재 읽고 있는 파일의 오프셋
-                totalChunks = Math.ceil(file.size / CHUNK_SIZE); // 전체 chunk 수 계산
-
-                reader.onload = function(event) {
-                    var chunkData = event.target.result;  // 현재 chunk 데이터
-
-                    if (webSocket.readyState === WebSocket.OPEN) {
-                        webSocket.send(chunkData);
-                    } else {
-                        console.error("WebSocket is not open. File chunk not sent.");
-                    }
-
-                    offset += CHUNK_SIZE;  // 다음 chunk를 읽기 위한 오프셋 증가
-
-                    var progress = (offset / file.size) * 100;
-                    progressBar.style.display = 'block';
-                    progressBarFill.style.width = progress + '%';
-                    console.log(progress + '%');
-
-                    if (offset < file.size) {
-                        readChunk();  // 다음 chunk 읽기
-                    } else {
-                        // 파일 전송 완료 후 메타 정보 전송
-                        if (webSocket.readyState === WebSocket.OPEN) {
-                            webSocket.send(JSON.stringify({
-                                type: 'fileMeta',
-                                username: username,
-                                fileName: file.name,
-                                totalChunks: totalChunks,
-                                chunkIndex: Math.floor(offset / CHUNK_SIZE)
-                            }));
-                        }
-                        //progressBar.style.display = 'none';  // 진행률 숨기기
-                        //addDownloadLink(file.name);  // 파일 다운로드 링크 추가
-                    }
-                };
-
-                function readChunk() {
-                    var blob = file.slice(offset, offset + CHUNK_SIZE);  // 파일의 특정 범위 자르기
-                    reader.readAsArrayBuffer(blob);  // 잘라낸 범위를 ArrayBuffer로 읽기
-                }
-
-                // 파일 전송 시작 시 메타 정보 전송
-                if (webSocket.readyState === WebSocket.OPEN) {
-                    webSocket.send(JSON.stringify({
-                        type: 'fileMeta',
-                        username: username,
-                        fileName: file.name,
-                        totalChunks: totalChunks,
-                        chunkIndex: Math.floor(offset / CHUNK_SIZE)
-                    }));
-                }
-                readChunk();  // 첫 번째 chunk 읽기 시작
-            }
-
-            /*
             // 파일 전송 버튼 클릭 이벤트
             document.getElementById("sendFileButton").addEventListener("click", function() {
                 var fileInput = document.getElementById("fileInput");
@@ -516,8 +384,6 @@
                     alert('Please select a file first.');  // 파일이 선택되지 않은 경우 경고 메시지
                 }
             });
-
-            */
         } else {
             alert("Please enter your name.");
         }
