@@ -39,8 +39,13 @@ public class ChatRoomController {
     @GetMapping("/talk/{roomId}")
     public String joinRoom(@PathVariable String roomId, Model model) {
         ChatRoom room = chatRoomService.findRoomById(roomId);
-        model.addAttribute("roomId", roomId);
-        model.addAttribute("roomName", room.getRoomName());
+        try {
+            model.addAttribute("roomId", roomId);
+            model.addAttribute("roomName", room.getRoomName());
+        }catch(Exception e){
+            return "redirect:/rooms";
+        }
+
         return "talk";  // 해당 채팅방을 위한 채팅 뷰
     }
 }

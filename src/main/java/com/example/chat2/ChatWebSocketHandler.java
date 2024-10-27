@@ -1,5 +1,7 @@
 package com.example.chat2;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,6 +21,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 @Component
@@ -28,60 +31,13 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
     private Map<String, List<WebSocketSession>> roomSessions = new HashMap<>();
     private static final Logger logger = LoggerFactory.getLogger(ChatWebSocketHandler.class);
 
+    // WebSocket 핸들러에서 참가자 목록을 관리하는 부분
+    private Map<String, List<String>> roomParticipants = new ConcurrentHashMap<>();
+
     @Value("${file.recv.allow.ip}")
     private String allowedIps;
 
-    // 유틸리티 메서드: IP 주소를 확인하는 함수
-    public boolean isIpAllowed(String ip) throws UnknownHostException {
-        String[] allowedIpList = allowedIps.split(",");
-        for (String allowedIp : allowedIpList) {
-            allowedIp = allowedIp.trim();
 
-            if (allowedIp.contains("/")) { // CIDR 처리
-                if (isInRange(ip, allowedIp)) {
-                    return true;
-                }
-            } else if (allowedIp.contains("*")) { // 와일드카드 처리
-                if (isWildcardMatch(ip, allowedIp)) {
-                    return true;
-                }
-            } else { // 단일 IP 처리
-                if (allowedIp.equals(ip)) {
-                    return true;
-                }
-            }
-        }
-        return false;
-    }
-
-    // CIDR 범위를 확인하는 메서드
-    private boolean isInRange(String ip, String cidr) throws UnknownHostException {
-        String[] parts = cidr.split("/");
-        InetAddress inetIp = InetAddress.getByName(ip);
-        InetAddress inetNetwork = InetAddress.getByName(parts[0]);
-        int prefixLength = Integer.parseInt(parts[1]);
-
-        byte[] ipBytes = inetIp.getAddress();
-        byte[] networkBytes = inetNetwork.getAddress();
-
-        int mask = (int) Math.pow(2, 32 - prefixLength) - 1;
-
-        for (int i = 0; i < ipBytes.length; i++) {
-            int ipSegment = ipBytes[i] & 0xFF;
-            int networkSegment = networkBytes[i] & 0xFF;
-
-            if ((ipSegment & mask) != (networkSegment & mask)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    // 와일드카드 IP 매칭을 확인하는 메서드
-    private boolean isWildcardMatch(String ip, String pattern) {
-        String regex = pattern.replace(".", "\\.").replace("*", ".*");
-        return Pattern.matches(regex, ip);
-    }
 
 
     @Override
@@ -89,21 +45,86 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         String roomId = getRoomId(session);
         roomSessions.computeIfAbsent(roomId, k -> new ArrayList<>()).add(session);
 
+        //logger.info("session.getPrincipal().toString() => "+session.getPrincipal().toString());
+        logger.info(session.getId());
+        logger.info(session.getRemoteAddress().toString());
+        logger.info(session.getLocalAddress().toString());
+        // 방 참가자 목록에 사용자 추가
+        /*
+        String username = getUsername(session);
+        logger.info("participant username: " + username);
+        roomParticipants.computeIfAbsent(roomId, k -> new ArrayList<>()).add(username);
+        broadcastParticipants(roomId);  // 모든 클라이언트에 참가자 목록 전송
+
+         */
+
+
         // 메시지 크기 제한 설정
         session.setTextMessageSizeLimit(64 * 1024); // 64KB
         session.setBinaryMessageSizeLimit(64 * 1024); // 64KB
         super.afterConnectionEstablished(session);
 
     }
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
+        String roomId = getRoomId(session);
+        roomSessions.get(roomId).remove(session);
 
+        // 방 참가자 목록에서 사용자 제거
+        String username = getUsername(session);
+        List<String> participants = roomParticipants.get(roomId);
+        if (participants != null) {
+            participants.remove(username);
+            if (participants.isEmpty()) {
+                roomParticipants.remove(roomId); // 방이 비어 있으면 삭제
+            }
+        }
+        broadcastParticipants(roomId);  // 모든 클라이언트에 참가자 목록 전송
+    }
+    // 참가자 목록을 클라이언트에 전송하는 메소드
+    private void broadcastParticipants(String roomId) {
+        List<String> participants = roomParticipants.get(roomId);
+        if (participants != null) {
+            logger.info("participants.toString():"+participants.toString());
+            for (WebSocketSession session : roomSessions.get(roomId)) {
+                try {
+                    session.sendMessage(new TextMessage(new ObjectMapper().writeValueAsString(participants)));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
         String roomId = getRoomId(session);
         List<WebSocketSession> sessions = roomSessions.get(roomId);
+        logger.info("handleTextMessage called...");
 
-        for (WebSocketSession webSocketSession : sessions) {
-            if (webSocketSession.isOpen()) {
-                webSocketSession.sendMessage(message);
+        JsonNode jsonNode = new ObjectMapper().readTree(message.getPayload());
+        logger.info("jsonNode ::"+jsonNode.toString());
+
+        String messageType = "";
+        String msg = "";
+        try {
+            messageType = jsonNode.get("messageType").asText();
+            logger.info("messageType :"+messageType);
+        }catch (Exception e){
+            messageType = "others";
+        }
+
+        if ("setUsername".equals(messageType)) {
+            String username = jsonNode.get("username").asText();
+            session.getAttributes().put("username", username);
+            roomParticipants.computeIfAbsent(roomId, k -> new ArrayList<>()).add(username);
+            broadcastParticipants(roomId);  // 모든 클라이언트에 참가자 목록 전송
+
+            logger.info("user joined :"+username);
+        } else {
+            for (WebSocketSession webSocketSession : sessions) {
+                if (webSocketSession.isOpen()) {
+                    webSocketSession.sendMessage(message);
+                }
             }
         }
     }
@@ -160,15 +181,67 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
         }
 
     }
-    @Override
-    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
-        String roomId = getRoomId(session);
-        roomSessions.get(roomId).remove(session);
-    }
+
 
     // WebSocketSession에서 채팅방 ID 추출
     private String getRoomId(WebSocketSession session) {
         return session.getUri().getPath().split("/chat/")[1];
+    }
+    // getUsername 메소드: 세션에서 사용자 이름을 가져옵니다.
+    private String getUsername(WebSocketSession session) {
+        return (String) session.getAttributes().get("username");
+    }
+
+    // 유틸리티 메서드: IP 주소를 확인하는 함수
+    public boolean isIpAllowed(String ip) throws UnknownHostException {
+        String[] allowedIpList = allowedIps.split(",");
+        for (String allowedIp : allowedIpList) {
+            allowedIp = allowedIp.trim();
+
+            if (allowedIp.contains("/")) { // CIDR 처리
+                if (isInRange(ip, allowedIp)) {
+                    return true;
+                }
+            } else if (allowedIp.contains("*")) { // 와일드카드 처리
+                if (isWildcardMatch(ip, allowedIp)) {
+                    return true;
+                }
+            } else { // 단일 IP 처리
+                if (allowedIp.equals(ip)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // CIDR 범위를 확인하는 메서드
+    private boolean isInRange(String ip, String cidr) throws UnknownHostException {
+        String[] parts = cidr.split("/");
+        InetAddress inetIp = InetAddress.getByName(ip);
+        InetAddress inetNetwork = InetAddress.getByName(parts[0]);
+        int prefixLength = Integer.parseInt(parts[1]);
+
+        byte[] ipBytes = inetIp.getAddress();
+        byte[] networkBytes = inetNetwork.getAddress();
+
+        int mask = (int) Math.pow(2, 32 - prefixLength) - 1;
+
+        for (int i = 0; i < ipBytes.length; i++) {
+            int ipSegment = ipBytes[i] & 0xFF;
+            int networkSegment = networkBytes[i] & 0xFF;
+
+            if ((ipSegment & mask) != (networkSegment & mask)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    // 와일드카드 IP 매칭을 확인하는 메서드
+    private boolean isWildcardMatch(String ip, String pattern) {
+        String regex = pattern.replace(".", "\\.").replace("*", ".*");
+        return Pattern.matches(regex, ip);
     }
 }
 
